@@ -296,3 +296,8 @@ ALTER TABLE expenses
   ADD COLUMN IF NOT EXISTS payment_mode  VARCHAR(20) DEFAULT 'CASH',
   ADD COLUMN IF NOT EXISTS cash_amount   DECIMAL(10,2) DEFAULT 0,
   ADD COLUMN IF NOT EXISTS account_amount DECIMAL(10,2) DEFAULT 0;
+
+-- Add cash_paid and upi_paid to orders table
+ALTER TABLE orders
+  ADD COLUMN IF NOT EXISTS cash_paid    DECIMAL(10,2) DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS upi_paid     DECIMAL(10,2) DEFAULT 0;

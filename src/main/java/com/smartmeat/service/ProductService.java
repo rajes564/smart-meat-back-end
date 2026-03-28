@@ -70,7 +70,7 @@ public class ProductService {
                 .category(category)
                 .pricePerKg(req.getPricePerKg())
                 .costPerKg(req.getCostPerKg())
-                .stockQty(req.getStockQty() != null ? req.getStockQty() : BigDecimal.ZERO)
+                .stockQty(BigDecimal.ZERO)          // stock is added only via Inventory → Add Purchase
                 .minStockLevel(req.getMinStockLevel() != null ? req.getMinStockLevel() : BigDecimal.valueOf(5))
                 .minOrderQty(req.getMinOrderQty() != null ? req.getMinOrderQty() : BigDecimal.valueOf(0.5))
                 .orderStep(req.getOrderStep() != null ? req.getOrderStep() : BigDecimal.valueOf(0.5))
@@ -101,11 +101,11 @@ public class ProductService {
         product.setCategory(category);
         product.setPricePerKg(req.getPricePerKg());
         product.setCostPerKg(req.getCostPerKg());
-        if (req.getStockQty() != null) product.setStockQty(req.getStockQty());
+        // stockQty intentionally NOT updated here — use Inventory → Add Purchase
         if (req.getMinStockLevel() != null) product.setMinStockLevel(req.getMinStockLevel());
-        if (req.getMinOrderQty() != null) product.setMinOrderQty(req.getMinOrderQty());
-        if (req.getOrderStep() != null) product.setOrderStep(req.getOrderStep());
-        if (req.getSortOrder() != null) product.setSortOrder(req.getSortOrder());
+        if (req.getMinOrderQty()   != null) product.setMinOrderQty(req.getMinOrderQty());
+        if (req.getOrderStep()     != null) product.setOrderStep(req.getOrderStep());
+        if (req.getSortOrder()     != null) product.setSortOrder(req.getSortOrder());
 
         if (image != null && !image.isEmpty()) {
             deleteOldImage(product.getImageUrl());

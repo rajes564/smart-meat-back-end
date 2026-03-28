@@ -14,15 +14,19 @@ import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 //── Order ─────────────────────────────────────────────────────────────────────
-@Data public class OrderRequest {
- @NotBlank String customerName;
- @NotBlank @Size(min=10, max=15) String customerMobile;
- String paymentMethod;
- String notes;
- @NotEmpty @Valid List<ItemRequest> items;
-
- @Data public static class ItemRequest {
-     @NotNull Long productId;
-     @NotNull @DecimalMin("0.1") BigDecimal qty;
- }
+@Data
+public class OrderRequest {
+    @NotBlank String customerName;
+    @NotBlank @Size(min=10, max=15) String customerMobile;
+    String paymentMethod;   // CASH | UPI | CARD | KHATA | SPLIT
+    String paymentMode;     // alias, same as above
+    String notes;
+    BigDecimal cashPaid;    // for SPLIT: cash portion
+    BigDecimal upiPaid;     // for SPLIT: UPI/card portion
+    @NotEmpty @Valid List<ItemRequest> items;
+ 
+    @Data public static class ItemRequest {
+        @NotNull Long productId;
+        @NotNull @DecimalMin("0.1") BigDecimal qty;
+    }
 }
