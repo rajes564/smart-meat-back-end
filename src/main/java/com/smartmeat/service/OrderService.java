@@ -29,13 +29,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 @Slf4j
 public class OrderService {
 
-    private final OrderRepository  orderRepository;
+    private final OrderRepository   orderRepository;
     private final ProductRepository productRepository;
-    private final ProductService   productService;
-    private final SseService       sseService;
-    private final SecurityUtils    securityUtils;
+    private final ProductService    productService;
+    private final SseService        sseService;
+    private final SecurityUtils     securityUtils;
+    private final ShopService       shopService;   // for balance updates
 
-    // Seeded from DB on startup — never resets to a value that already exists
     private final AtomicInteger orderSeq = new AtomicInteger(100);
 
     /**
@@ -46,9 +46,10 @@ public class OrderService {
     @PostConstruct
     public void initOrderSeq() {
         try {
-            int maxSeq = orderRepository.findMaxOrderSeq();
-            orderSeq.set(maxSeq);
-            log.info("Order sequence initialized to {} from DB", maxSeq);
+            Long maxSeq = orderRepository.findMaxOrderSeq();
+            int seed = (maxSeq != null) ? maxSeq.intValue() : 100;
+            orderSeq.set(seed);
+            log.info("Order sequence initialized to {} from DB", seed);
         } catch (Exception e) {
             log.warn("Could not read max order seq from DB, defaulting to 100. Reason: {}", e.getMessage());
         }
@@ -73,7 +74,6 @@ public class OrderService {
     @Transactional
     public OrderResponse posSale(OrderRequest req) {
         Order order = buildOrder(req, false);
-        // Attach the seller who processed it
         try {
             User seller = securityUtils.currentUser();
             if (seller != null) order.setProcessedBy(seller);
@@ -81,6 +81,39 @@ public class OrderService {
         Order saved = orderRepository.save(order);
         saved.getItems().forEach(item ->
             productService.reduceStock(item.getProduct().getId(), item.getQty()));
+
+        // ── Update shop cash/account balances ─────────────────────────────────
+        BigDecimal orderTotal = saved.getTotal();
+        String method = saved.getPaymentMethod();
+        if (method == null) method = "CASH";
+
+        BigDecimal cashDelta    = BigDecimal.ZERO;
+        BigDecimal accountDelta = BigDecimal.ZERO;
+
+        switch (method.toUpperCase()) {
+            case "CASH"  -> cashDelta    = orderTotal;
+            case "UPI",
+                 "CARD"  -> accountDelta = orderTotal;
+            case "SPLIT" -> {
+                cashDelta    = req.getCashPaid()  != null ? req.getCashPaid()  : BigDecimal.ZERO;
+                accountDelta = req.getUpiPaid()   != null ? req.getUpiPaid()   : BigDecimal.ZERO;
+            }
+            case "KHATA" -> {
+                // Only the paid-now portion goes into balances
+                BigDecimal cashPart = req.getCashPaid() != null ? req.getCashPaid() : BigDecimal.ZERO;
+                BigDecimal upiPart  = req.getUpiPaid()  != null ? req.getUpiPaid()  : BigDecimal.ZERO;
+                cashDelta    = cashPart;
+                accountDelta = upiPart;
+            }
+            // default: no balance change (e.g. fully on Khata credit)
+        }
+
+        try {
+            shopService.addToBalance(cashDelta, accountDelta);
+        } catch (Exception e) {
+            log.warn("Balance update failed for order {}: {}", saved.getOrderNumber(), e.getMessage());
+        }
+
         return toResponse(saved);
     }
 
@@ -121,11 +154,16 @@ public class OrderService {
     // ── Private helpers ───────────────────────────────────────────────────────
 
     private Order buildOrder(OrderRequest req, boolean isOnline) {
+        BigDecimal cashPaid = req.getCashPaid() != null ? req.getCashPaid() : BigDecimal.ZERO;
+        BigDecimal upiPaid  = req.getUpiPaid()  != null ? req.getUpiPaid()  : BigDecimal.ZERO;
+
         Order order = Order.builder()
                 .orderNumber(generateOrderNumber())
                 .customerName(req.getCustomerName())
                 .customerMobile(req.getCustomerMobile())
                 .paymentMethod(req.getPaymentMethod() != null ? req.getPaymentMethod() : "CASH")
+                .cashPaid(cashPaid)
+                .upiPaid(upiPaid)
                 .status("PENDING")
                 .onlineOrder(isOnline)
                 .notes(req.getNotes())

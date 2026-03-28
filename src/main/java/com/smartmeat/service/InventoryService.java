@@ -73,7 +73,11 @@ public class InventoryService {
                 .build();
 
         purchaseRepo.save(purchase);
-        productRepo.save(product);  // stock updated separately via ProductService
+
+        // ── Increase product stock ────────────────────────────────────────────
+        product.setStockQty(product.getStockQty().add(req.getQty()));
+        product.setStockStatus(product.computedStockStatus());
+        productRepo.save(product);
 
         BigDecimal amountDue = totalCost.subtract(amountPaid);
 

@@ -34,8 +34,14 @@ public class Order {
     @Column(nullable = false, length = 20)
     private String status = "PENDING";
 
-    @Column(name = "payment_method", length = 10)
+    @Column(name = "payment_method", length = 20)
     private String paymentMethod = "CASH";
+
+    @Column(name = "cash_paid", precision = 10, scale = 2)
+    private BigDecimal cashPaid = BigDecimal.ZERO;
+
+    @Column(name = "upi_paid", precision = 10, scale = 2)
+    private BigDecimal upiPaid = BigDecimal.ZERO;
 
     @Column(precision = 10, scale = 2)
     private BigDecimal subtotal;

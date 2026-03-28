@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -25,35 +26,43 @@ public class ShopService {
 
     private final ShopSettingsRepository settingsRepo;
 
-    @Value("${app.upload-dir}")
+    @Value("${app.upload-dir:./uploads}")
     private String uploadDir;
 
-    @Value("${app.base-url}")
+    @Value("${app.base-url:http://localhost:8080}")
     private String baseUrl;
 
     public ShopSettingsResponse getSettings() {
         return settingsRepo.findFirst()
                 .map(this::toResponse)
-                .orElseGet(() -> ShopSettingsResponse.builder().status("OPEN").build());
+                .orElseGet(() -> ShopSettingsResponse.builder()
+                        .status("OPEN")
+                        .cashBalance(BigDecimal.ZERO)
+                        .accountBalance(BigDecimal.ZERO)
+                        .build());
     }
 
     @Transactional
     public ShopSettingsResponse update(ShopSettingsRequest req, MultipartFile logo, MultipartFile banner) {
         ShopSettings settings = settingsRepo.findFirst().orElseGet(ShopSettings::new);
 
-        if (req.getShopName() != null)    settings.setShopName(req.getShopName());
-        if (req.getTagline() != null)      settings.setTagline(req.getTagline());
-        if (req.getPhone() != null)        settings.setPhone(req.getPhone());
-        if (req.getEmail() != null)        settings.setEmail(req.getEmail());
-        if (req.getAddress() != null)      settings.setAddress(req.getAddress());
-        if (req.getLatitude() != null)     settings.setLatitude(req.getLatitude());
-        if (req.getLongitude() != null)    settings.setLongitude(req.getLongitude());
-        if (req.getStatus() != null)       settings.setStatus(req.getStatus());
-        if (req.getOpenTime() != null)     settings.setOpenTime(req.getOpenTime());
-        if (req.getCloseTime() != null)    settings.setCloseTime(req.getCloseTime());
-        if (req.getSundayClose() != null)  settings.setSundayClose(req.getSundayClose());
+        if (req.getShopName()    != null) settings.setShopName(req.getShopName());
+        if (req.getTagline()     != null) settings.setTagline(req.getTagline());
+        if (req.getPhone()       != null) settings.setPhone(req.getPhone());
+        if (req.getEmail()       != null) settings.setEmail(req.getEmail());
+        if (req.getAddress()     != null) settings.setAddress(req.getAddress());
+        if (req.getLatitude()    != null) settings.setLatitude(req.getLatitude());
+        if (req.getLongitude()   != null) settings.setLongitude(req.getLongitude());
+        if (req.getStatus()      != null) settings.setStatus(req.getStatus());
+        if (req.getOpenTime()    != null) settings.setOpenTime(req.getOpenTime());
+        if (req.getCloseTime()   != null) settings.setCloseTime(req.getCloseTime());
+        if (req.getSundayClose() != null) settings.setSundayClose(req.getSundayClose());
 
-        if (logo != null && !logo.isEmpty())     settings.setLogoUrl(saveFile(logo, "logos"));
+        // Save opening balances when set via settings page
+        if (req.getCashBalance()    != null) settings.setCashBalance(req.getCashBalance());
+        if (req.getAccountBalance() != null) settings.setAccountBalance(req.getAccountBalance());
+
+        if (logo   != null && !logo.isEmpty())   settings.setLogoUrl(saveFile(logo,   "logos"));
         if (banner != null && !banner.isEmpty())  settings.setBannerUrl(saveFile(banner, "banners"));
 
         return toResponse(settingsRepo.save(settings));
@@ -64,6 +73,20 @@ public class ShopService {
         settings.setStatus(status.toUpperCase());
         settingsRepo.save(settings);
         return Map.of("status", settings.getStatus());
+    }
+
+    /** Called by OrderService/InventoryService to credit/debit balances */
+    @Transactional
+    public void addToBalance(BigDecimal cashDelta, BigDecimal accountDelta) {
+        settingsRepo.findFirst().ifPresent(s -> {
+            BigDecimal cash    = s.getCashBalance()    != null ? s.getCashBalance()    : BigDecimal.ZERO;
+            BigDecimal account = s.getAccountBalance() != null ? s.getAccountBalance() : BigDecimal.ZERO;
+            if (cashDelta    != null && cashDelta.compareTo(BigDecimal.ZERO)    != 0)
+                s.setCashBalance(cash.add(cashDelta));
+            if (accountDelta != null && accountDelta.compareTo(BigDecimal.ZERO) != 0)
+                s.setAccountBalance(account.add(accountDelta));
+            settingsRepo.save(s);
+        });
     }
 
     private String saveFile(MultipartFile file, String folder) {
@@ -95,8 +118,8 @@ public class ShopService {
                 .sundayClose(s.getSundayClose())
                 .logoUrl(s.getLogoUrl())
                 .bannerUrl(s.getBannerUrl())
-                .cashBalance(s.getCashBalance() != null ? s.getCashBalance() : java.math.BigDecimal.ZERO)
-                .accountBalance(s.getAccountBalance() != null ? s.getAccountBalance() : java.math.BigDecimal.ZERO)
+                .cashBalance(s.getCashBalance()    != null ? s.getCashBalance()    : BigDecimal.ZERO)
+                .accountBalance(s.getAccountBalance() != null ? s.getAccountBalance() : BigDecimal.ZERO)
                 .build();
     }
 }
