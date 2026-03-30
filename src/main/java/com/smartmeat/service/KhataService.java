@@ -163,6 +163,7 @@ public class KhataService {
         // Resolve cash/account split
         BigDecimal cashAmt = req.getCashAmount() != null ? req.getCashAmount() : BigDecimal.ZERO;
         BigDecimal acctAmt = req.getAccountAmount() != null ? req.getAccountAmount() : BigDecimal.ZERO;
+        
         String mode = req.getPaymentMode() != null ? req.getPaymentMode().toUpperCase() : "CASH";
 
         // If no explicit split provided, infer from paymentMode

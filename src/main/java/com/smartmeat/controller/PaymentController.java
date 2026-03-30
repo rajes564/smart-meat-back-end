@@ -20,6 +20,7 @@ public class PaymentController {
     // Step 1: Frontend calls this to create Razorpay order
     @PostMapping("/create-order")
     public ResponseEntity<?> createOrder(@RequestBody CreateOrderRequest request) {
+    	
         return ResponseEntity.ok(paymentService.createOrder(request));
     }
 
@@ -27,5 +28,14 @@ public class PaymentController {
     @PostMapping("/verify")
     public ResponseEntity<?> verifyPayment(@RequestBody VerifyPaymentRequest request) {
         return ResponseEntity.ok(paymentService.verifyAndConfirm(request));
+    }
+    
+    
+    @PostMapping("/verify-by-admin")
+    public ResponseEntity<?> verifyPaymentByAdmin(@RequestBody VerifyPaymentRequest request) {
+    	System.out.println("verify by admin is touched.....");
+    	System.out.println(request);
+    	
+        return ResponseEntity.ok(paymentService.verifyAndConfirmByAdmin(request));
     }
 }
