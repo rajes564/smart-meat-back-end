@@ -1,8 +1,8 @@
 spring:
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5433/smartmeat}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/smartmeat}
     username: ${SPRING_DATASOURCE_USERNAME:postgres}
-    password: ${SPRING_DATASOURCE_PASSWORD:root}
+    password: ${SPRING_DATASOURCE_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver
 
   jpa:
@@ -39,3 +39,26 @@ logging:
   level:
     com.smartmeat: DEBUG
     org.springframework.security: INFO
+    
+    
+
+
+#paypal:
+##  client-id: AbM0bAjEvicCGqTM6Gz8q0lhApNu85I79GaZ6FMQwxEGekXu2s8Cn_fkwCIIa7-oRC6zonegrDqrPK0I
+##  client-secret: EHsFJ0n_DK17kA6ruNguOCUAaXFJXW7G8lnL-IqbEAvXIDCCeCh-oQDaV77lZ5Xt4Ks278oCWaFAUzJM
+#  mode: sandbox
+  
+  
+#razorpay:
+#  key:
+#    id: AbM0bAjEvicCGqTM6Gz8q0lhApNu85I79GaZ6FMQwxEGekXu2s8Cn_fkwCIIa7-oRC6zonegrDqrPK0I
+#    secret: EHsFJ0n_DK17kA6ruNguOCUAaXFJXW7G8lnL-IqbEAvXIDCCeCh-oQDaV77lZ5Xt4Ks278oCWaFAUzJM
+    
+razorpay:
+  key:
+    id: rzp_test_SX67FIzwRU0Dk5
+    secret: DrGFCB0d8NI6RT7w5MvdRJjg
+    
+    
+  
+  # Change to "live" for production

@@ -8,9 +8,13 @@ import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 //── Expense ───────────────────────────────────────────────────────────────────
-@Data public class ExpenseRequest {
- @NotBlank String category;
- @NotNull @DecimalMin("0.01") BigDecimal amount;
- String description;
- String expenseDate;
+@Data 
+public class ExpenseRequest {
+    @NotBlank String category;
+    @NotNull @DecimalMin("0.01") BigDecimal amount;
+    BigDecimal cashAmount;      // cash portion
+    BigDecimal accountAmount;   // UPI/card portion
+    String paymentMode;         // CASH | UPI | CARD | SPLIT
+    String description;
+    String expenseDate;
 }

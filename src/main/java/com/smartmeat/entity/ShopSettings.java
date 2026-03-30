@@ -26,10 +26,17 @@ public class ShopSettings {
     @Column(columnDefinition = "TEXT") private String address;
     private Double latitude;
     private Double longitude;
-    @Column(length = 20) private String status = "OPEN";
-    @Column(name = "open_time", length = 10) private String openTime = "07:00";
-    @Column(name = "close_time", length = 10) private String closeTime = "20:00";
-    @Column(name = "sunday_close", length = 10) private String sundayClose = "14:00";
+    
+    @Column(length = 20) 
+    private String status = "SHOP OPEN";
+    
+    @Column(name = "open_time", length = 10) 
+    private String openTime = "07:00";
+    @Column(name = "close_time", length = 10) 
+    private String closeTime = "20:00";
+    @Column(name = "sunday_close", length = 10)
+    private String sundayClose = "14:00";
+    
     @Column(name = "logo_url") private String logoUrl;
     @Column(name = "banner_url") private String bannerUrl;
     // Cash drawer and bank/UPI account balances

@@ -126,6 +126,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/reviews/public").permitAll()
                 .requestMatchers("/uploads/**").permitAll()
                 .requestMatchers("/api/sse/**").permitAll()
+                .requestMatchers("/api/payment/**").permitAll()
 
                 // Guest customers can place orders and submit reviews without login
                 .requestMatchers(HttpMethod.POST, "/api/orders").permitAll()

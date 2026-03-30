@@ -1,7 +1,10 @@
 package com.smartmeat.service;
 
+import com.smartmeat.dto.request.CreateOrderRequest;
 import com.smartmeat.dto.request.OrderRequest;
+import com.smartmeat.dto.request.VerifyPaymentRequest;
 import com.smartmeat.dto.response.OrderResponse;
+import com.smartmeat.dto.response.ProductResponse;
 import com.smartmeat.entity.Order;
 import com.smartmeat.entity.OrderItem;
 import com.smartmeat.entity.Product;
@@ -22,6 +25,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 @Service
@@ -78,7 +83,10 @@ public class OrderService {
             User seller = securityUtils.currentUser();
             if (seller != null) order.setProcessedBy(seller);
         } catch (Exception ignored) {}
+        
+        
         Order saved = orderRepository.save(order);
+        
         saved.getItems().forEach(item ->
             productService.reduceStock(item.getProduct().getId(), item.getQty()));
 
@@ -256,4 +264,96 @@ public class OrderService {
                         .build()).toList())
                 .build();
     }
+
+
+	
+    @Transactional
+    public OrderResponse placeOrder(VerifyPaymentRequest req) {
+        Order order = buildOrder1(req, true);
+        Order saved = orderRepository.save(order);
+
+        saved.getItems().forEach(item ->
+            productService.reduceStock(item.getProduct().getId(), item.getQty()));
+        
+        
+        try {
+            shopService.addToBalance( order.getCashPaid(),order.getUpiPaid());
+        } catch (Exception e) {
+            log.warn("Balance update failed for order {}: {}", saved.getOrderNumber(), e.getMessage());
+        }
+
+        OrderResponse response = toResponse(saved);
+        sseService.newOrder(response);
+        log.info("Online order placed: {}", saved.getOrderNumber());
+        return response;
+    }
+    
+
+private Order buildOrder1(VerifyPaymentRequest req, boolean isOnline) {
+
+    // ── Build items + calculate total in ONE loop ──────────────────
+    List<OrderItem> orderItems = new ArrayList<>();
+    BigDecimal total = BigDecimal.ZERO;
+
+    for (CreateOrderRequest.OrderItemDto item : req.getItems()) {
+        Product product = productRepository.findById(item.getProductId())
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Product not found: " + item.getProductId()));
+
+        if (!product.isAvailable()) {
+            throw new BusinessException("Product not available: " + product.getName());
+        }
+        if (product.getStockQty().compareTo(item.getQty()) < 0) {
+            throw new BusinessException("Insufficient stock for: " + product.getName()
+                    + " (available: " + product.getStockQty() + " kg)");
+        }
+
+        // ✅ Fix 1: was `total.add(total)` — should be lineTotal
+        BigDecimal lineTotal = product.getPricePerKg().multiply(item.getQty());
+        total = total.add(lineTotal);
+
+        orderItems.add(OrderItem.builder()
+                .product(product)
+                .productName(product.getName())
+                .qty(item.getQty())
+                .unitPrice(product.getPricePerKg())
+                // ✅ Fix 2: set lineTotal on item too
+                .total(lineTotal)
+                .build());
+    }
+
+    // ── Build order ────────────────────────────────────────────────
+    Order order = Order.builder()
+            .orderNumber(generateOrderNumber())
+            .customerName(req.getCustomerName())
+            .customerMobile(req.getCustomerMobile())
+            .customerEmail(req.getCustomerEmail())
+            .notes(req.getNotes())
+            .onlineOrder(isOnline)
+            .status("PAID")
+            .razorpayOrderId(req.getRazorpayOrderId())
+            .razorpayPaymentId(req.getRazorpayPaymentId())
+            .paymentMethod("Razorpay")
+            .upiPaid(total)
+            .cashPaid(BigDecimal.ZERO)
+            // ✅ Fix 3: was set to total1 (ZERO) — now correctly set to total
+            .subtotal(total)
+            .total(total)
+            .build();
+
+    // ✅ Fix 4: link items to order AFTER order is built
+    orderItems.forEach(item -> item.setOrder(order));
+    order.setItems(orderItems);
+
+    // ── Link logged-in customer if present ─────────────────────────
+    try {
+        User current = securityUtils.currentUser();
+        if (current != null && "CUSTOMER".equals(current.getRole().name())) {
+            order.setCustomer(current);
+        }
+    } catch (Exception ignored) {}
+
+
+    return order;
+}
 }

@@ -39,6 +39,7 @@ public class KhataService {
     private final KhataEntryRepository entryRepo;
     private final UserRepository userRepo;
     private final SecurityUtils securityUtils;
+    private final ShopService shopService;
 
     public List<KhataAccountResponse> getAll() {
         return accountRepo.findAllByOrderByCreatedAtDesc().stream()
@@ -106,12 +107,10 @@ public class KhataService {
      */
     @Transactional
     public KhataAccountResponse createAccountDirect(Map<String, Object> body) {
-    	System.out.println("Service is called");
         String name        = (String) body.getOrDefault("customerName", "");
         String mobile      = (String) body.getOrDefault("customerMobile", "");
         String email       = (String) body.get("email");
         Object limitObj    = body.get("creditLimit");
-        
         BigDecimal limit   = limitObj != null
                 ? new BigDecimal(limitObj.toString())
                 : BigDecimal.valueOf(10000);
@@ -128,8 +127,8 @@ public class KhataService {
                     .mobile(mobile)
                     .email(email)
                     .password("$2a$12$dummyHashForKhataAccountCreation123456789")
-                    .active(true)
                     .role(Role.CUSTOMER)
+                    .active(true)
                     .build();
             return userRepo.save(u);
         });
@@ -161,6 +160,20 @@ public class KhataService {
         KhataAccount account = accountRepo.findById(req.getAccountId())
                 .orElseThrow(() -> new ResourceNotFoundException("Khata account not found"));
 
+        // Resolve cash/account split
+        BigDecimal cashAmt = req.getCashAmount() != null ? req.getCashAmount() : BigDecimal.ZERO;
+        BigDecimal acctAmt = req.getAccountAmount() != null ? req.getAccountAmount() : BigDecimal.ZERO;
+        String mode = req.getPaymentMode() != null ? req.getPaymentMode().toUpperCase() : "CASH";
+
+        // If no explicit split provided, infer from paymentMode
+        if (cashAmt.add(acctAmt).compareTo(BigDecimal.ZERO) == 0) {
+            switch (mode) {
+                case "CASH"  -> cashAmt = req.getAmount();
+                case "UPI", "CARD" -> acctAmt = req.getAmount();
+                default -> cashAmt = req.getAmount(); // fallback
+            }
+        }
+
         KhataEntry entry = KhataEntry.builder()
                 .account(account)
                 .entryType(req.getEntryType().toUpperCase())
@@ -173,10 +186,14 @@ public class KhataService {
         entryRepo.save(entry);
 
         if ("DEBIT".equals(entry.getEntryType())) {
+            // Customer owes more — no cash movement yet
             account.setCurrentDue(account.getCurrentDue().add(req.getAmount()));
         } else {
+            // CREDIT: customer paying back — cash/account received
             account.setCurrentDue(account.getCurrentDue().subtract(req.getAmount()).max(BigDecimal.ZERO));
             account.setTotalCredit(account.getTotalCredit().add(req.getAmount()));
+            // Credit to shop balances
+            shopService.addToBalance(cashAmt, acctAmt);
         }
         accountRepo.save(account);
 

@@ -18,7 +18,7 @@ public class Order {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "order_number", nullable = false, unique = true, length = 20)
+    @Column(name = "order_number", nullable = false, unique = true, length = 100)
     private String orderNumber;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -36,6 +36,18 @@ public class Order {
 
     @Column(name = "payment_method", length = 20)
     private String paymentMethod = "CASH";
+    
+    
+    @Column(name = "email", length = 50)
+    private String customerEmail;
+    
+    
+    @Column(name = "razorpay_order_id")
+    private String razorpayOrderId;
+    
+    
+    @Column(name = "razorpay_payment_id")
+    private String razorpayPaymentId;
 
     @Column(name = "cash_paid", precision = 10, scale = 2)
     private BigDecimal cashPaid = BigDecimal.ZERO;
