@@ -1,12 +1,26 @@
-FROM eclipse-temurin:17-jdk-alpine AS builder
-WORKDIR /build
+# Stage 1: Build
+FROM maven:3.9.9-eclipse-temurin-17 AS build
+WORKDIR /app
+
+# Copy pom and source code
 COPY pom.xml .
 COPY src ./src
-RUN apk add --no-cache maven && mvn package -DskipTests -q
 
-FROM eclipse-temurin:17-jre-alpine
+# Build jar without tests
+RUN mvn clean package -DskipTests
+
+# Stage 2: Run
+FROM eclipse-temurin:17-jdk
 WORKDIR /app
-COPY --from=builder /build/target/smartmeat-api-1.0.0.jar app.jar
-RUN mkdir -p /app/uploads
+
+# Copy jar from build stage
+COPY --from=build /app/target/*.jar app.jar
+
+# Expose port
 EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "app.jar"]
+
+# Use Render dynamic port
+ENV PORT 8080
+
+# Start Spring Boot
+CMD ["java", "-jar", "app.jar"]
