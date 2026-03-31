@@ -78,6 +78,7 @@ public class ShopService {
     /** Called by OrderService/InventoryService to credit/debit balances */
     @Transactional
     public void addToBalance(BigDecimal cashDelta, BigDecimal accountDelta) {
+    	System.out.println("add to balance is touched");
         settingsRepo.findFirst().ifPresent(s -> {
             BigDecimal cash    = s.getCashBalance()    != null ? s.getCashBalance()    : BigDecimal.ZERO;
             BigDecimal account = s.getAccountBalance() != null ? s.getAccountBalance() : BigDecimal.ZERO;

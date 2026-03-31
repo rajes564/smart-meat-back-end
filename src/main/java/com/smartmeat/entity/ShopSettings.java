@@ -28,7 +28,7 @@ public class ShopSettings {
     private Double longitude;
     
     @Column(length = 20) 
-    private String status = "SHOP OPEN";
+    private String status = "OPEN";
     
     @Column(name = "open_time", length = 10) 
     private String openTime = "07:00";

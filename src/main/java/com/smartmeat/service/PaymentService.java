@@ -18,6 +18,7 @@ import org.springframework.stereotype.Service;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -40,70 +41,98 @@ public class PaymentService {
 
     // ── CREATE ORDER ──────────────────────────────────────────────
     public Map<String, Object> createOrder(CreateOrderRequest request) {
-    	
-    	   // DEBUG — remove after fixing
-        log.info("Razorpay Key ID: {}", keyId);
-        log.info("Razorpay Secret length: {}", keySecret != null ? keySecret.length() : "NULL");
-        
 
-        // 1. Calculate amount from DB — never trust frontend amount
+        // 1. Calculate total from DB — never trust frontend amount
         BigDecimal total = BigDecimal.ZERO;
         for (CreateOrderRequest.OrderItemDto item : request.getItems()) {
             ProductResponse product = productService.getById(item.getProductId());
-
             if (!product.isAvailable()) {
                 throw new RuntimeException(product.getName() + " is not available");
             }
-
-            BigDecimal itemTotal = product.getPricePerKg()
-                .multiply(item.getQty());
-            total = total.add(itemTotal);
+            total = total.add(product.getPricePerKg().multiply(item.getQty()));
         }
-        
-        System.out.println("back end calculated total"+total);
-        
-        System.out.println("upi payment..."+request.getUpiPaid());
-        System.out.println("cash payment..."+request.getCashPaid());
-        
-        System.out.println("cash payment..."+request.getCashPaid().add(request.getUpiPaid()));
 
-        System.out.println(total.compareTo(request.getUpiPaid().add(request.getCashPaid())) != 0);
-        
-        int amountInPaise = 0;
-        if((request.getRole().equalsIgnoreCase("ADMIN") || request.getRole().equalsIgnoreCase("SELLER")) && request.getPaymentMode().equalsIgnoreCase("SPLIT")) {
-        	if(total.compareTo(request.getUpiPaid().add(request.getCashPaid())) != 0) {
-        		throw new RuntimeException("payment mismatch...!");
-        	}
-        	amountInPaise = request.getUpiPaid().multiply(BigDecimal.valueOf(100)).intValue();
-        }else {
-        	amountInPaise = total.multiply(BigDecimal.valueOf(100)).intValue();
+        System.out.println("Backend calculated total: " + total);
+        System.out.println("UPI paid: "   + request.getUpiPaid());
+        System.out.println("Cash paid: "  + request.getCashPaid());
+        System.out.println("Payment mode: " + request.getPaymentMode());
+        System.out.println("Role: "       + request.getRole());
+        System.out.println("Is Khata: "   + request.isKhata());
+
+        int amountInPaise;
+
+        if (request.isKhata()) {
+            // ── KHATA MODE (UPI or SPLIT) ────────────────────────────────────
+            // Formula: cashPaid + upiPaid + khataRemainder = total
+            // cashPaid + upiPaid can be less than total — remainder goes to Khata.
+            // Only validate that what they're paying now does not exceed the bill.
+            BigDecimal payingNow = request.getCashPaid().add(request.getUpiPaid());
+
+            if (payingNow.compareTo(total) > 0) {
+                throw new RuntimeException(
+                    "Amount paying now (₹" + payingNow + ") exceeds bill total (₹" + total + ")");
+            }
+
+            // Razorpay charges only the UPI portion
+            amountInPaise = request.getUpiPaid()
+                .setScale(0, RoundingMode.HALF_UP)
+                .multiply(BigDecimal.valueOf(100))
+                .intValue();
+
+            System.out.println("Khata mode — Razorpay amount (UPI portion): " + amountInPaise);
+
+        } else if ((request.getRole().equalsIgnoreCase("ADMIN")
+                 || request.getRole().equalsIgnoreCase("SELLER"))
+                 && request.getPaymentMode().equalsIgnoreCase("SPLIT")) {
+            // ── ADMIN/SELLER SPLIT (no Khata) ───────────────────────────────
+            // cash + upi must equal total exactly — no remainder allowed
+            BigDecimal splitSum = request.getCashPaid().add(request.getUpiPaid());
+
+            if (total.compareTo(splitSum) != 0) {
+                throw new RuntimeException(
+                    "Payment mismatch — cash (₹" + request.getCashPaid() +
+                    ") + UPI (₹" + request.getUpiPaid() +
+                    ") = ₹" + splitSum +
+                    " but bill total is ₹" + total);
+            }
+
+            // Razorpay charges only the UPI portion
+            amountInPaise = request.getUpiPaid()
+                .setScale(0, RoundingMode.HALF_UP)
+                .multiply(BigDecimal.valueOf(100))
+                .intValue();
+
+            System.out.println("Admin split mode — Razorpay amount (UPI portion): " + amountInPaise);
+
+        } else {
+            // ── PURE UPI / CARD (Customer or Admin, no Khata, no Split) ─────
+            // Razorpay charges the full bill total
+            amountInPaise = total
+                .setScale(0, RoundingMode.HALF_UP)
+                .multiply(BigDecimal.valueOf(100))
+                .intValue();
+
+            System.out.println("UPI/Card mode — Razorpay amount (full total): " + amountInPaise);
         }
-        
-        
-        if(request.isKhata()) {
-        	amountInPaise = request.getUpiPaid().multiply(BigDecimal.valueOf(100)).intValue();
-        }
-        
-       
 
-        // 2. Convert to paise (Razorpay uses smallest currency unit)
-      
-
-        // 3. Create Razorpay order
+        // 2. Create Razorpay order
         try {
             JSONObject orderRequest = new JSONObject();
-            orderRequest.put("amount", amountInPaise);
-            orderRequest.put("currency", "INR");
-            orderRequest.put("receipt", "rcpt_" + System.currentTimeMillis());
+            orderRequest.put("amount",          amountInPaise);
+            orderRequest.put("currency",        "INR");
+            orderRequest.put("receipt",         "rcpt_" + System.currentTimeMillis());
             orderRequest.put("payment_capture", 1);
 
             com.razorpay.Order razorpayOrder = razorpayClient.orders.create(orderRequest);
 
+            System.out.println("Razorpay order created: " + razorpayOrder.get("id") +
+                               " for amount (paise): " + amountInPaise);
+
             Map<String, Object> response = new HashMap<>();
-            response.put("orderId", razorpayOrder.get("id"));
-            response.put("amount", amountInPaise);
+            response.put("orderId",  razorpayOrder.get("id"));
+            response.put("amount",   amountInPaise);
             response.put("currency", "INR");
-            response.put("keyId", keyId);
+            response.put("keyId",    keyId);
             return response;
 
         } catch (RazorpayException e) {
@@ -131,34 +160,10 @@ public class PaymentService {
             total = total.add(itemTotal);
         }
         
-        //=================================================
-        //
-        // POS SALE
-        //
-        //=================================================
-        
-      
-        
-        //=================================================
-        //
-        // KHATA ENTRIES
-        //
-        //=================================================
-        
-        
-        
-        //================================================
-        
-        //KHATA SUMMARY
-        
-        //================================================
-        
-        
 
+        
         // 3. Save order to DB    
         return orderService.placeOrder(request);
-
-
     }
 
     // ── HMAC SHA256 Signature Verification ───────────────────────
@@ -180,32 +185,20 @@ public class PaymentService {
         }
     }
 
-	public Object verifyAndConfirmByAdmin(VerifyPaymentRequest request) {
-        // 1. Verify signature — proves payment is genuine
+    public Map<String, Object> verifyAndConfirmByAdmin(VerifyPaymentRequest request) {
+        // 1. Verify signature only
         String payload = request.getRazorpayOrderId() + "|" + request.getRazorpayPaymentId();
         boolean isValid = verifySignature(payload, request.getRazorpaySignature());
 
         if (!isValid) {
-            throw new RuntimeException("Payment verification failed — invalid signature");
+            throw new RuntimeException("payment verification by admin...!");
         }
 
-        // 2. Re-calculate amount from DB again for safety
-        BigDecimal total = BigDecimal.ZERO;
-        
-        for (CreateOrderRequest.OrderItemDto item : request.getItems()) {
-            ProductResponse product = productService.getById(item.getProductId());
-            BigDecimal itemTotal = product.getPricePerKg()
-                .multiply(item.getQty());
-            total = total.add(itemTotal);
-        }
-        
-        System.out.println(total.compareTo(request.getUpiPaid().add(request.getCashPaid())) !=0);
-        
-        if (total.compareTo(request.getUpiPaid().add(request.getCashPaid())) != 0) {
-        	throw new RuntimeException("payment mismatch...!");
-        }
-
-        // 3. Save order to DB    
-        return orderService.placeOrder(request);
-	}
+        // 2. Return verified status — DO NOT call orderService.placeOrder()
+        //    pos-sale endpoint is the single place that saves the order.
+        Map<String, Object> response = new HashMap<>();
+        response.put("verified", true);
+        response.put("razorpayPaymentId", request.getRazorpayPaymentId());
+        return response;
+    }
 }

@@ -23,6 +23,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -78,6 +79,7 @@ public class OrderService {
 
     @Transactional
     public OrderResponse posSale(OrderRequest req) {
+    	
         Order order = buildOrder(req, false);
         try {
             User seller = securityUtils.currentUser();
@@ -92,6 +94,7 @@ public class OrderService {
 
         // ── Update shop cash/account balances ─────────────────────────────────
         BigDecimal orderTotal = saved.getTotal();
+        
         String method = saved.getPaymentMethod();
         if (method == null) method = "CASH";
 
@@ -284,6 +287,7 @@ public class OrderService {
 
         OrderResponse response = toResponse(saved);
         sseService.newOrder(response);
+        
         log.info("Online order placed: {}", saved.getOrderNumber());
         return response;
     }
@@ -334,11 +338,11 @@ private Order buildOrder1(VerifyPaymentRequest req, boolean isOnline) {
             .razorpayOrderId(req.getRazorpayOrderId())
             .razorpayPaymentId(req.getRazorpayPaymentId())
             .paymentMethod("Razorpay")
-            .upiPaid(total)
+            .upiPaid(total.setScale(0, RoundingMode.HALF_UP))
             .cashPaid(BigDecimal.ZERO)
             // ✅ Fix 3: was set to total1 (ZERO) — now correctly set to total
-            .subtotal(total)
-            .total(total)
+            .subtotal(total.setScale(0, RoundingMode.HALF_UP))
+            .total(total.setScale(0, RoundingMode.HALF_UP))
             .build();
 
     // ✅ Fix 4: link items to order AFTER order is built

@@ -70,7 +70,7 @@ public class OrderController {
     @PostMapping("/pos")
     @PreAuthorize("hasAnyRole('ADMIN','SELLER')")
     public ResponseEntity<OrderResponse> posSale(@Valid @RequestBody OrderRequest req) {
-    	System.out.println("pos sale touched......");
+    	System.out.println("pos sale touched......" +req);
         return ResponseEntity.ok(orderService.posSale(req));
     }
 }
