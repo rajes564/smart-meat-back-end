@@ -79,6 +79,11 @@ public class PaymentService {
         	amountInPaise = total.multiply(BigDecimal.valueOf(100)).intValue();
         }
         
+        
+        if(request.isKhata()) {
+        	amountInPaise = request.getUpiPaid().multiply(BigDecimal.valueOf(100)).intValue();
+        }
+        
        
 
         // 2. Convert to paise (Razorpay uses smallest currency unit)
@@ -125,6 +130,30 @@ public class PaymentService {
                 .multiply(item.getQty());
             total = total.add(itemTotal);
         }
+        
+        //=================================================
+        //
+        // POS SALE
+        //
+        //=================================================
+        
+      
+        
+        //=================================================
+        //
+        // KHATA ENTRIES
+        //
+        //=================================================
+        
+        
+        
+        //================================================
+        
+        //KHATA SUMMARY
+        
+        //================================================
+        
+        
 
         // 3. Save order to DB    
         return orderService.placeOrder(request);

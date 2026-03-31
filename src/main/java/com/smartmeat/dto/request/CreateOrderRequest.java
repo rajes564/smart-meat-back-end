@@ -20,6 +20,8 @@ public class CreateOrderRequest {
     
     private BigDecimal cashPaid;
     private BigDecimal upiPaid;
+    
+    private boolean isKhata;
 
     @Data
     public static class OrderItemDto {
