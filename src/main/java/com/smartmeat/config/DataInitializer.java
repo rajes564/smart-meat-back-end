@@ -37,7 +37,7 @@ public class DataInitializer implements CommandLineRunner {
         			.name("Rajesh")
         			.password("$2a$12$NKyQ5yMDwWSov4ifGxKJEezNcRDNB9EQ/M7TWa.AxTCjgg3tDAcWm")
         			.mobile("9000474103")
-        			.email("admin@royalmeatmart.com")
+        			.email("seller@royalmeatmart.com")
         			.role(Role.SELLER)
         			.active(true)
         			.build();
