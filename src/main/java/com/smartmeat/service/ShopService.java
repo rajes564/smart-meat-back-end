@@ -1,8 +1,6 @@
 package com.smartmeat.service;
 
 
-
-import com.smartmeat.dto.*;
 import com.smartmeat.dto.request.GalleryItemMeta;
 import com.smartmeat.dto.request.HeroSlideMeta;
 import com.smartmeat.dto.request.ShopSettingsRequest;
