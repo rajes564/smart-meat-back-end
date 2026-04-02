@@ -1,21 +1,44 @@
 package com.smartmeat.dto.request;
 
-import lombok.Data;
+import java.math.BigDecimal;
+import java.util.List;
 
-//── Shop Settings ─────────────────────────────────────────────────────────────
-@Data 
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+
+@Data @NoArgsConstructor @AllArgsConstructor @Builder
 public class ShopSettingsRequest {
-    java.math.BigDecimal cashBalance;
-    java.math.BigDecimal accountBalance;
-    String shopName;
-    String tagline;
-    String phone;
-    String email;
-    String address;
-    Double latitude;
-    Double longitude;
-    String status;
-    String openTime;
-    String closeTime;
-    String sundayClose;
+ 
+    // Basic info
+    private String shopName;
+    private String tagline;
+ 
+    // Contact
+    private String phone;
+    private String email;
+    private String address;
+ 
+    // Location
+    private Double latitude;
+    private Double longitude;
+ 
+    // Hours
+    private String status;
+    private String openTime;
+    private String closeTime;
+    private String sundayClose;
+ 
+    // Balances
+    private BigDecimal cashBalance;
+    private BigDecimal accountBalance;
+ 
+    // Hero carousel metadata (order determines sortOrder)
+    private List<HeroSlideMeta> heroSlidesMeta;
+ 
+    // Gallery metadata
+    private List<GalleryItemMeta> galleryMeta;
 }
+ 

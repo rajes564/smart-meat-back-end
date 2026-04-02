@@ -301,3 +301,43 @@ ALTER TABLE expenses
 ALTER TABLE orders
   ADD COLUMN IF NOT EXISTS cash_paid    DECIMAL(10,2) DEFAULT 0,
   ADD COLUMN IF NOT EXISTS upi_paid     DECIMAL(10,2) DEFAULT 0;
+  
+  
+  
+  -- ─────────────────────────────────────────────────────────────────────────────
+-- Migration: add hero_slides and gallery_items tables
+-- Run via Flyway (V2__add_carousel_and_gallery.sql) or Liquibase as you prefer
+-- ─────────────────────────────────────────────────────────────────────────────
+
+-- Hero Carousel slides
+CREATE TABLE IF NOT EXISTS hero_slides (
+    id               BIGINT       NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    client_id        VARCHAR(64)  NOT NULL UNIQUE,   -- frontend UUID
+    src              TEXT         NOT NULL,           -- full URL after upload
+    caption          VARCHAR(500),
+    sort_order       INT          NOT NULL DEFAULT 0,
+    shop_settings_id BIGINT       NOT NULL,
+    CONSTRAINT fk_hero_slide_settings
+        FOREIGN KEY (shop_settings_id) REFERENCES shop_settings(id)
+        ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_hero_slides_settings_order
+    ON hero_slides (shop_settings_id, sort_order);
+
+-- Gallery items (images + videos)
+CREATE TABLE IF NOT EXISTS gallery_items (
+    id               BIGINT       NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    client_id        VARCHAR(64)  NOT NULL UNIQUE,
+    type             VARCHAR(10)  NOT NULL DEFAULT 'image',  -- 'image' | 'video'
+    src              TEXT         NOT NULL,
+    caption          VARCHAR(500),
+    sort_order       INT          NOT NULL DEFAULT 0,
+    shop_settings_id BIGINT       NOT NULL,
+    CONSTRAINT fk_gallery_item_settings
+        FOREIGN KEY (shop_settings_id) REFERENCES shop_settings(id)
+        ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_gallery_items_settings_order
+    ON gallery_items (shop_settings_id, sort_order);

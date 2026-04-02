@@ -127,6 +127,12 @@ public class SecurityConfig {
                 .requestMatchers("/uploads/**").permitAll()
                 .requestMatchers("/api/sse/**").permitAll()
                 .requestMatchers("/api/payment/**").permitAll()
+                .requestMatchers(
+                        "/api/shop/settings",   // public GET (if you want homepage to read it)
+                        "/uploads/**",          // ← ADD THIS — serves logo, banner, hero, gallery files
+                        "/api/auth/**",
+                        "/error"
+                    ).permitAll()
 
                 // Guest customers can place orders and submit reviews without login
                 .requestMatchers(HttpMethod.POST, "/api/orders").permitAll()

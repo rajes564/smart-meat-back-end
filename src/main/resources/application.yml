@@ -1,16 +1,9 @@
-#spring:
- # datasource:
-  #  url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5433/smartmeat}
-   # username: ${SPRING_DATASOURCE_USERNAME:postgres}
-    #password: ${SPRING_DATASOURCE_PASSWORD:root}
-    #driver-class-name: org.postgresql.Driver
 spring:
   datasource:
-    url: ${DB_URL}
-    username: ${DB_USER}
-    password: ${DB_PASS}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5433/smartmeat}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:root}
     driver-class-name: org.postgresql.Driver
-
   jpa:
     hibernate:
       ddl-auto: update
@@ -18,53 +11,37 @@ spring:
     properties:
       hibernate:
         format_sql: true
-
   servlet:
     multipart:
-      max-file-size: 10MB
-      max-request-size: 10MB
-
+      enabled: true
+      max-file-size: 50MB
+      max-request-size: 200MB
+      file-size-threshold: 2MB
   web:
     cors:
       allowed-origins: ${CORS_ORIGINS:http://localhost:3000,http://localhost:5173,https://royal-meat-mark.onrender.com/}
 
 server:
   port: ${PORT:8080}
+  tomcat:
+    max-http-form-post-size: 200MB
+    max-swallow-size: 200MB
 
 jwt:
   secret: ${JWT_SECRET:change-this-to-a-256-bit-secret-in-production-environment}
-  expiration: 86400000   # 24 hours
-  refresh-expiration: 604800000  # 7 days
+  expiration: 86400000
+  refresh-expiration: 604800000
 
 app:
   upload-dir: ${UPLOAD_DIR:./uploads}
-#  base-url: ${BASE_URL:http://localhost:8080}
-  base-url: ${BASE_URL:https://smart-meat-back-end.onrender.com}
+  base-url: ${BASE_URL:http://localhost:8080}
+
+razorpay:
+  key:
+    id: rzp_test_SX67FIzwRU0Dk5
+    secret: DrGFCB0d8NI6RT7w5MvdRJjg
 
 logging:
   level:
     com.smartmeat: DEBUG
     org.springframework.security: INFO
-    
-    
-
-
-#paypal:
-##  client-id: AbM0bAjEvicCGqTM6Gz8q0lhApNu85I79GaZ6FMQwxEGekXu2s8Cn_fkwCIIa7-oRC6zonegrDqrPK0I
-##  client-secret: EHsFJ0n_DK17kA6ruNguOCUAaXFJXW7G8lnL-IqbEAvXIDCCeCh-oQDaV77lZ5Xt4Ks278oCWaFAUzJM
-#  mode: sandbox
-  
-  
-#razorpay:
-#  key:
-#    id: AbM0bAjEvicCGqTM6Gz8q0lhApNu85I79GaZ6FMQwxEGekXu2s8Cn_fkwCIIa7-oRC6zonegrDqrPK0I
-#    secret: EHsFJ0n_DK17kA6ruNguOCUAaXFJXW7G8lnL-IqbEAvXIDCCeCh-oQDaV77lZ5Xt4Ks278oCWaFAUzJM
-    
-razorpay:
-  key:
-    id: rzp_test_SX67FIzwRU0Dk5
-    secret: DrGFCB0d8NI6RT7w5MvdRJjg
-    
-    
-  
-  # Change to "live" for production
