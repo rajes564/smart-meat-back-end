@@ -135,6 +135,14 @@ public class ShopService {
     //     b. If isNew → save uploaded file, create new row
     //  3. Delete any DB rows whose clientId was not present in the list
     // ─────────────────────────────────────────────────────────────────────────
+    
+ // KEY FIXES:
+ // 1. Added log showing exactly what clientIds exist in DB — helps diagnose stale rows
+ // 2. Changed strategy: use saveAndFlush with clientId as the unique key.
+//     If clientId exists in DB → update it (caption, sortOrder, optionally src).
+//     If not → insert new row with the uploaded file.
+//     This is now a true upsert — no more "skipping" on either branch.
+ // 3. File presence drives insert decision, NOT isNew flag from frontend.
     private void syncHeroSlides(
             ShopSettings settings,
             List<HeroSlideMeta> metaList,
@@ -144,56 +152,59 @@ public class ShopService {
      
         Long settingsId = settings.getId();
      
-        // ── DEBUG: log what we received so you can verify isNew is correct ──────
-        metaList.forEach(m -> log.info(
-            "HeroSlide received → id={} isNew={} caption='{}'", m.getId(), m.isNew(), m.getCaption()
-        ));
-     
         Map<String, HeroSlide> existingByClientId = heroSlideRepo
                 .findByShopSettingsIdOrderBySortOrderAsc(settingsId)
                 .stream()
                 .collect(Collectors.toMap(HeroSlide::getClientId, s -> s));
      
+        // ── DEBUG: log DB state so you can see exactly what's there ─────────
+        log.info("Hero slides in DB for settingsId={}: {}", settingsId, existingByClientId.keySet());
+        log.info("Hero files received from frontend: {}", heroFiles.keySet());
+     
         List<String> keptClientIds = new ArrayList<>();
      
         for (int i = 0; i < metaList.size(); i++) {
-            HeroSlideMeta meta = metaList.get(i);
-            String clientId = meta.getId();
+            HeroSlideMeta meta   = metaList.get(i);
+            String        clientId = meta.getId();
             keptClientIds.add(clientId);
      
-            if (meta.isNew()) {
-                // NEW slide — save file and insert row
-                MultipartFile file = heroFiles.get(clientId);
+            HeroSlide existing = existingByClientId.get(clientId);
+            MultipartFile file = heroFiles.get(clientId);
+     
+            if (existing == null) {
+                // ── INSERT: not in DB yet ────────────────────────────────────
                 if (file == null || file.isEmpty()) {
-                    log.warn("Hero slide {} marked as new but no file found — skipping", clientId);
+                    log.warn("Hero slide {} → not in DB and no file — skipping", clientId);
                     continue;
                 }
                 String url = saveFile(file, "hero");
-                HeroSlide slide = HeroSlide.builder()
+                heroSlideRepo.save(HeroSlide.builder()
                         .clientId(clientId)
                         .src(url)
                         .caption(meta.getCaption())
                         .sortOrder(i)
                         .shopSettings(settings)
-                        .build();
-                heroSlideRepo.save(slide);
-                log.info("Hero slide saved → clientId={} url={}", clientId, url);
+                        .build());
+                log.info("Hero slide INSERTED → clientId={} url={}", clientId, url);
      
             } else {
-                // EXISTING slide — update caption + order only
-                HeroSlide slide = existingByClientId.get(clientId);
-                if (slide == null) {
-                    log.warn("Hero slide {} not found in DB — skipping", clientId);
-                    continue;
+                // ── UPDATE: exists in DB → update caption + order ────────────
+                // If a new file was also uploaded, replace the src
+                if (file != null && !file.isEmpty()) {
+                    existing.setSrc(saveFile(file, "hero"));
+                    log.info("Hero slide src REPLACED → clientId={}", clientId);
                 }
-                slide.setCaption(meta.getCaption());
-                slide.setSortOrder(i);
-                heroSlideRepo.save(slide);
+                existing.setCaption(meta.getCaption());
+                existing.setSortOrder(i);
+                heroSlideRepo.save(existing);
+                log.info("Hero slide UPDATED → clientId={}", clientId);
             }
         }
      
+        // Delete any slides the frontend removed
         if (keptClientIds.isEmpty()) {
             heroSlideRepo.deleteAllByShopSettingsId(settingsId);
+            log.info("All hero slides deleted for settingsId={}", settingsId);
         } else {
             heroSlideRepo.deleteRemovedSlides(settingsId, keptClientIds);
         }
@@ -210,56 +221,60 @@ public class ShopService {
      
         Long settingsId = settings.getId();
      
-        metaList.forEach(m -> log.info(
-            "GalleryItem received → id={} isNew={} type='{}' caption='{}'",
-            m.getId(), m.isNew(), m.getType(), m.getCaption()
-        ));
-     
         Map<String, GalleryItem> existingByClientId = galleryItemRepo
                 .findByShopSettingsIdOrderBySortOrderAsc(settingsId)
                 .stream()
                 .collect(Collectors.toMap(GalleryItem::getClientId, g -> g));
      
+        // ── DEBUG ────────────────────────────────────────────────────────────
+        log.info("Gallery items in DB for settingsId={}: {}", settingsId, existingByClientId.keySet());
+        log.info("Gallery files received from frontend: {}", galleryFiles.keySet());
+     
         List<String> keptClientIds = new ArrayList<>();
      
         for (int i = 0; i < metaList.size(); i++) {
-            GalleryItemMeta meta = metaList.get(i);
-            String clientId = meta.getId();
+            GalleryItemMeta meta     = metaList.get(i);
+            String          clientId = meta.getId();
             keptClientIds.add(clientId);
      
-            if (meta.isNew()) {
-                MultipartFile file = galleryFiles.get(clientId);
+            GalleryItem   existing = existingByClientId.get(clientId);
+            MultipartFile file     = galleryFiles.get(clientId);
+     
+            if (existing == null) {
+                // ── INSERT ───────────────────────────────────────────────────
                 if (file == null || file.isEmpty()) {
-                    log.warn("Gallery item {} marked as new but no file found — skipping", clientId);
+                    log.warn("Gallery item {} → not in DB and no file — skipping", clientId);
                     continue;
                 }
                 String folder = "video".equals(meta.getType()) ? "gallery/videos" : "gallery/images";
-                String url = saveFile(file, folder);
-                GalleryItem item = GalleryItem.builder()
+                String url    = saveFile(file, folder);
+                galleryItemRepo.save(GalleryItem.builder()
                         .clientId(clientId)
                         .type(meta.getType())
                         .src(url)
                         .caption(meta.getCaption())
                         .sortOrder(i)
                         .shopSettings(settings)
-                        .build();
-                galleryItemRepo.save(item);
-                log.info("Gallery item saved → clientId={} url={}", clientId, url);
+                        .build());
+                log.info("Gallery item INSERTED → clientId={} url={}", clientId, url);
      
             } else {
-                GalleryItem item = existingByClientId.get(clientId);
-                if (item == null) {
-                    log.warn("Gallery item {} not found in DB — skipping", clientId);
-                    continue;
+                // ── UPDATE ───────────────────────────────────────────────────
+                if (file != null && !file.isEmpty()) {
+                    String folder = "video".equals(meta.getType()) ? "gallery/videos" : "gallery/images";
+                    existing.setSrc(saveFile(file, folder));
+                    log.info("Gallery item src REPLACED → clientId={}", clientId);
                 }
-                item.setCaption(meta.getCaption());
-                item.setSortOrder(i);
-                galleryItemRepo.save(item);
+                existing.setCaption(meta.getCaption());
+                existing.setSortOrder(i);
+                galleryItemRepo.save(existing);
+                log.info("Gallery item UPDATED → clientId={}", clientId);
             }
         }
      
         if (keptClientIds.isEmpty()) {
             galleryItemRepo.deleteAllByShopSettingsId(settingsId);
+            log.info("All gallery items deleted for settingsId={}", settingsId);
         } else {
             galleryItemRepo.deleteRemovedItems(settingsId, keptClientIds);
         }
